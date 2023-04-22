@@ -30,6 +30,47 @@ def getHandGesture(hand_landmarks):
         return "papel"
 
 
+# desenhando os pontos e traçados nas mãos
+def drawHandStrokes(mhl):
+    for hand_landmarks in mhl:
+        mp_drawing.draw_landmarks(
+            img,
+            hand_landmarks,
+            mp_hands.HAND_CONNECTIONS,
+            mp_drawing_styles.get_default_hand_landmarks_style(),
+            mp_drawing_styles.get_default_hand_connections_style()
+        )
+
+
+# identifica as maos do primeiro e do segundo jogador
+def detectPlayerHands(mhl):
+    hand_one, hand_two = mhl
+    # menor valor de X da primeira mao detectada
+    min_x_hand_1 = min(list(
+        map(lambda l: l.x, hand_one.landmark)))
+    # menor valor de X da segunda mao detectada
+    min_x_hand_2 = min(list(
+        map(lambda l: l.x, hand_two.landmark)))
+
+    # a primeira mão é a que inicia na menor posição de X na tela
+    first_player_hand = hand_one if min_x_hand_1 < min_x_hand_2 else hand_two
+    second_player_hand = hand_two if min_x_hand_1 < min_x_hand_2 else hand_one
+
+    return first_player_hand, second_player_hand
+
+
+# define o jogador vencedor
+def defineWinner(gesture_one, gesture_two):
+    if gesture_one == gesture_two:
+        return 0
+    elif gesture_one == "papel":
+        return 1 if gesture_two == "pedra" else 2
+    elif gesture_one == "pedra":
+        return 1 if gesture_two == "tesoura" else 2
+    elif gesture_one == "tesoura":
+        return 1 if gesture_two == "papel" else 2
+
+
 first_player_gesture = None
 second_player_gesture = None
 winning_player = None  # número do jogador que venceu o round
@@ -49,52 +90,30 @@ while True:
     # recebe uma imagem e retorna informações como a posição e orientação das mãos
     results = hands.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     # lista dos pontos de referencia das mãos detectadas
-    hls = results.multi_hand_landmarks
+    mhl = results.multi_hand_landmarks
 
     # se nenhuma mao for detectada ou
     # mais ou menos de duas maos forem detectadas
     # a interação do frame no loop é pulada
-    if not hls or len(hls) != 2:
+    if not mhl or len(mhl) != 2:
         continue
 
-    # desenhando os pontos e traçados nas mãos
-    for hand_landmarks in hls:
-        mp_drawing.draw_landmarks(
-            img,
-            hand_landmarks,
-            mp_hands.HAND_CONNECTIONS,
-            mp_drawing_styles.get_default_hand_landmarks_style(),
-            mp_drawing_styles.get_default_hand_connections_style()
-        )
+    drawHandStrokes(mhl)
 
-    hand_one, hand_two = hls
-    # menor valor de X da primeira mao detectada
-    min_x_hand_1 = min(list(
-        map(lambda l: l.x, hand_one.landmark)))
-    # menor valor de X da segunda mao detectada
-    min_x_hand_2 = min(list(
-        map(lambda l: l.x, hand_two.landmark)))
-
-    # a primeira mão é a que inicia na menor posição de X na tela
-    first_player_hand = hand_one if min_x_hand_1 < min_x_hand_2 else hand_two
-    second_player_hand = hand_two if min_x_hand_1 < min_x_hand_2 else hand_one
+    first_player_hand, second_player_hand = detectPlayerHands(mhl)
 
     # verifica quem venceu se um dos gestos mudarem em relação ao gesto detectado anteriormente no outro frame do video
-    if (getHandGesture(first_player_hand) != first_player_gesture or getHandGesture(second_player_hand) != second_player_gesture):
-        # pega o gesto da mao da esquerda
-        first_player_gesture = getHandGesture(first_player_hand)
-        # pega o gesto da mao da direita
-        second_player_gesture = getHandGesture(second_player_hand)
+    new_fpg = getHandGesture(first_player_hand)
+    new_spg = getHandGesture(second_player_hand)
 
-        # define o jogador vencedor
-        if first_player_gesture == second_player_gesture:
-            winning_player = 0
-        elif first_player_gesture == "papel":
-            winning_player = 1 if second_player_gesture == "pedra" else 2
-        elif first_player_gesture == "pedra":
-            winning_player = 1 if second_player_gesture == "tesoura" else 2
-        elif first_player_gesture == "tesoura":
-            winning_player = 1 if second_player_gesture == "papel" else 2
+    if (new_fpg != first_player_gesture or new_spg != second_player_gesture):
+        # pega o gesto da mao da esquerda
+        first_player_gesture = new_fpg
+        # pega o gesto da mao da direita
+        second_player_gesture = new_spg
+
+        winning_player = defineWinner(
+            first_player_gesture, second_player_gesture)
 
         if winning_player == 1:
             scores[0] += 1
